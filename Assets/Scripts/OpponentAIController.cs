@@ -1,14 +1,15 @@
+using System.Collections;
 using UnityEngine;
 
 public class OpponentAIController : MonoBehaviour
 {
-    [Header ("Movement Settings")]
+    [Header ("Opponent Movement Settings")]
     public float PlayerSpeed = 1.0f;
     public float PlayerRotation = 10.0f;
     public Animator animator;
     public CharacterController characterController;
 
-    [Header("Fight Settings")]
+    [Header("Opponent Fight Settings")]
     public float attackDelay = 0.5f;
     public float dodgeDist = 5f;
     public float HitRadius = 2f;
@@ -21,15 +22,23 @@ public class OpponentAIController : MonoBehaviour
     public string[] FightAnimations = { "Attack1Animation", "Attack2Animation", "Attack3Animation", "Attack4Animation" };
     private float TimeOfLastAttack;
 
+    [Header("Health Settings")]
+    public int maxHP = 100;
+    public int currHP;
+    public HealthBarBehavior healthBarBehavior;
+
     [Header("Sounds & Effects Settings")]
 
     public ParticleSystem HitEffect1;
     public ParticleSystem HitEffect2;
     public ParticleSystem HitEffect3;
     public ParticleSystem HitEffect4;
+    public AudioClip[] HitSounds;
 
     void Awake()
     {
+        currHP = maxHP;
+        healthBarBehavior.OnStartHealth(currHP);
         RandomNumberGenerator();
     }
 
@@ -52,8 +61,34 @@ public class OpponentAIController : MonoBehaviour
     void BkwrdDodgeBehavior()
     {
         animator.Play("DodgeBackAnimation");
-        Vector3 DodgeDirection = - transform.forward * dodgeDist; //Calculation of the direction
+        Vector3 DodgeDirection = -transform.forward * dodgeDist; //Calculation of the direction
         characterController.SimpleMove(DodgeDirection); //Application of that calculation
+    }
+    
+    public IEnumerator OnHitAnim(int hit)
+    {
+        yield return new WaitForSeconds(0.3f);
+
+        if (HitSounds != null && HitSounds.Length > 0)
+        {
+            int RandIndx = UnityEngine.Random.Range(0, HitSounds.Length);
+            AudioSource.PlayClipAtPoint(HitSounds[RandIndx], transform.position);
+        }
+
+        currHP -= hit;
+        healthBarBehavior.SetHealth(currHP);
+        
+        if (currHP <= 0)
+        {
+            PlayerDeathBehavior();
+        }
+
+        animator.Play("HitDamageAnimation");
+    }
+
+    void PlayerDeathBehavior()
+    {
+        Debug.Log("Opponent Died!!!");
     }
     
     public void AttackEffect1()
@@ -96,6 +131,9 @@ public class OpponentAIController : MonoBehaviour
                     {
                         FightBehavior(RandAttack);
                     }
+
+                    //When the player gets hit, need to implement damage
+                    fightingControllers[i].StartCoroutine(fightingControllers[i].OnHitAnim(hitDamage));
                 }
             }
             //Move towards the player to get into attacking radius

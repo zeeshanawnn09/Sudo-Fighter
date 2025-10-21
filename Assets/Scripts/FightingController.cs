@@ -1,6 +1,9 @@
 using System;
+using System.Collections;
 using UnityEngine;
 
+[RequireComponent(typeof(Animator))]
+[RequireComponent(typeof(CharacterController))]
 public class FightingController : MonoBehaviour
 {
     [Header ("Movement Settings")]
@@ -12,9 +15,16 @@ public class FightingController : MonoBehaviour
     [Header("Fight Settings")]
     public float attackDelay = 0.5f;
     public float dodgeDist = 5f;
+    public float AttackRadius = 2.2f; 
     public int hitDamage = 5;
     public string[] FightAnimations = { "Attack1Animation", "Attack2Animation", "Attack3Animation", "Attack4Animation" };
+    public Transform[] Opponents;
     private float TimeOfLastAttack;
+
+    [Header("Health Settings")]
+    public int maxHP = 100;
+    public int currHP;
+    public HealthBarBehavior healthBarBehavior;
 
     [Header("Sounds & Effects Settings")]
 
@@ -22,10 +32,13 @@ public class FightingController : MonoBehaviour
     public ParticleSystem HitEffect2;
     public ParticleSystem HitEffect3;
     public ParticleSystem HitEffect4;
+    public AudioClip[] HitSounds;
 
 
     void Awake()
     {
+        currHP = maxHP;
+        healthBarBehavior.OnStartHealth(currHP);
         animator = GetComponent<Animator>();
         characterController = GetComponent<CharacterController>();
     }
@@ -82,6 +95,15 @@ public class FightingController : MonoBehaviour
 
             Debug.Log("Performed an attack " + (AttackIndx + 1) + " dealing " + Damage + " damage");
             TimeOfLastAttack = Time.time;
+
+            foreach(Transform Opponent in Opponents)
+            {
+                //If the player is within attacking radius, the oppenent will get damage
+                if (Vector3.Distance(transform.position, Opponent.position) <= AttackRadius)
+                {
+                    Opponent.GetComponent<OpponentAIController>().StartCoroutine(Opponent.GetComponent<OpponentAIController>().OnHitAnim(hitDamage));
+                }
+            }
         }
 
         else
@@ -90,6 +112,31 @@ public class FightingController : MonoBehaviour
         }
     }
 
+    public IEnumerator OnHitAnim(int hit)
+    {
+        yield return new WaitForSeconds(0.3f);
+
+        if (HitSounds != null && HitSounds.Length > 0)
+        {
+            int RandIndx = UnityEngine.Random.Range(0, HitSounds.Length);
+            AudioSource.PlayClipAtPoint(HitSounds[RandIndx], transform.position);
+        }
+
+        currHP -= hit;
+        healthBarBehavior.SetHealth(currHP);
+        
+        if (currHP <= 0)
+        {
+            PlayerDeathBehavior();
+        }
+
+        animator.Play("HitDamageAnimation");
+    }
+
+    void PlayerDeathBehavior()
+    {
+        Debug.Log("Player Died!!!");
+    }
     void AttackAnims()
     {
         if (Input.GetKeyDown(KeyCode.Alpha1))

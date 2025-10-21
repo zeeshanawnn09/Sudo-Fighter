@@ -3,7 +3,22 @@ guid: 215074bc674b9da44acec010e672a192
 ModelImporter:
   serializedVersion: 22200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Base1
+    second: {fileID: 2100000, guid: 237d7c15667ef1c409e0625c82f547bd, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Bell_Area
+    second: {fileID: 2100000, guid: 461e058c77c79064f91a0dea370ba9e6, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Flags1
+    second: {fileID: 2100000, guid: 21aa1d21b9a40f54382f01b65e563f28, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0
