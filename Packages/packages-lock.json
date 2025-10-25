@@ -1,5 +1,13 @@
 {
   "dependencies": {
+    "com.nullkal.unisense": {
+      "version": "file:C:/Users/zeesh/Downloads/UniSenseVR-master/UniSenseVR-master",
+      "depth": 0,
+      "source": "local",
+      "dependencies": {
+        "com.unity.inputsystem": "1.0.1"
+      }
+    },
     "com.unity.2d.sprite": {
       "version": "1.0.0",
       "depth": 0,
