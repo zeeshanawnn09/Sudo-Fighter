@@ -289,6 +289,46 @@ public class FightingController : MonoBehaviour
         catch (Exception) { }
     }
 
+    // --- Public wrappers for inspector / voice callables -----------------
+    // These helpers let other components (or UnityEvents) trigger attacks
+    // or animations without needing access to private members.
+
+    /// <summary>
+    /// Perform attack by index (1-based intuitive in inspector, but zero-based internally).
+    /// Use from inspector/UnityEvent or voice listener. Pass 0 for first attack.
+    /// </summary>
+    public void PerformAttackByIndex(int index)
+    {
+        // keep same semantics as internal FightBehavior
+        FightBehavior(index);
+    }
+
+    /// <summary>
+    /// Play an animation state directly on the Animator.
+    /// Useful when wiring an animation name from the inspector or a voice mapping.
+    /// </summary>
+    public void PlayAnimationByName(string animationName)
+    {
+        if (animator == null) animator = GetComponent<Animator>();
+        if (!string.IsNullOrEmpty(animationName)) animator.Play(animationName);
+    }
+
+    /// <summary>
+    /// Trigger one of the configured attack particle effects (1-4).
+    /// Index is 1-based for clarity in inspector.
+    /// </summary>
+    public void TriggerAttackEffect(int effectIndex)
+    {
+        switch (effectIndex)
+        {
+            case 1: AttackEffect1(); break;
+            case 2: AttackEffect2(); break;
+            case 3: AttackEffect3(); break;
+            case 4: AttackEffect4(); break;
+            default: break;
+        }
+    }
+
     /// <summary>
     /// Try to set the controller light color (DualSense/DualShock/etc.) using reflection.
     /// This method attempts to find a light-setting method on the device and invoke it safely.
