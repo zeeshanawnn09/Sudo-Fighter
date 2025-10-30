@@ -156,9 +156,18 @@ public partial class @InputSystem_Actions: IInputActionCollection2, IDisposable
                     ""initialStateCheck"": false
                 },
                 {
-                    ""name"": ""GyroUpTrigger"",
+                    ""name"": ""Gyro"",
                     ""type"": ""Value"",
                     ""id"": ""f1399881-3ebd-406d-8c0a-940a29e20324"",
+                    ""expectedControlType"": ""Vector3"",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": true
+                },
+                {
+                    ""name"": ""Accel"",
+                    ""type"": ""Value"",
+                    ""id"": ""5324ac90-b17b-4828-9067-5784d4275091"",
                     ""expectedControlType"": ""Vector3"",
                     ""processors"": """",
                     ""interactions"": """",
@@ -246,11 +255,22 @@ public partial class @InputSystem_Actions: IInputActionCollection2, IDisposable
                 {
                     ""name"": """",
                     ""id"": ""1a85e366-f297-4ca1-917a-52bcec2cd38f"",
-                    ""path"": """",
+                    ""path"": ""GamePadHID/gyro"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": """",
-                    ""action"": ""GyroUpTrigger"",
+                    ""action"": ""Gyro"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""c535dc71-62c6-4c5d-985e-05699ea2335d"",
+                    ""path"": ""GamePadHID/accel"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Accel"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
                 }
@@ -329,7 +349,8 @@ public partial class @InputSystem_Actions: IInputActionCollection2, IDisposable
         m_Player_Attack4 = m_Player.FindAction("Attack4", throwIfNotFound: true);
         m_Player_Dodge = m_Player.FindAction("Dodge", throwIfNotFound: true);
         m_Player_PauseGame = m_Player.FindAction("PauseGame", throwIfNotFound: true);
-        m_Player_GyroUpTrigger = m_Player.FindAction("GyroUpTrigger", throwIfNotFound: true);
+        m_Player_Gyro = m_Player.FindAction("Gyro", throwIfNotFound: true);
+        m_Player_Accel = m_Player.FindAction("Accel", throwIfNotFound: true);
     }
 
     ~@InputSystem_Actions()
@@ -417,7 +438,8 @@ public partial class @InputSystem_Actions: IInputActionCollection2, IDisposable
     private readonly InputAction m_Player_Attack4;
     private readonly InputAction m_Player_Dodge;
     private readonly InputAction m_Player_PauseGame;
-    private readonly InputAction m_Player_GyroUpTrigger;
+    private readonly InputAction m_Player_Gyro;
+    private readonly InputAction m_Player_Accel;
     /// <summary>
     /// Provides access to input actions defined in input action map "Player".
     /// </summary>
@@ -458,9 +480,13 @@ public partial class @InputSystem_Actions: IInputActionCollection2, IDisposable
         /// </summary>
         public InputAction @PauseGame => m_Wrapper.m_Player_PauseGame;
         /// <summary>
-        /// Provides access to the underlying input action "Player/GyroUpTrigger".
+        /// Provides access to the underlying input action "Player/Gyro".
         /// </summary>
-        public InputAction @GyroUpTrigger => m_Wrapper.m_Player_GyroUpTrigger;
+        public InputAction @Gyro => m_Wrapper.m_Player_Gyro;
+        /// <summary>
+        /// Provides access to the underlying input action "Player/Accel".
+        /// </summary>
+        public InputAction @Accel => m_Wrapper.m_Player_Accel;
         /// <summary>
         /// Provides access to the underlying input action map instance.
         /// </summary>
@@ -508,9 +534,12 @@ public partial class @InputSystem_Actions: IInputActionCollection2, IDisposable
             @PauseGame.started += instance.OnPauseGame;
             @PauseGame.performed += instance.OnPauseGame;
             @PauseGame.canceled += instance.OnPauseGame;
-            @GyroUpTrigger.started += instance.OnGyroUpTrigger;
-            @GyroUpTrigger.performed += instance.OnGyroUpTrigger;
-            @GyroUpTrigger.canceled += instance.OnGyroUpTrigger;
+            @Gyro.started += instance.OnGyro;
+            @Gyro.performed += instance.OnGyro;
+            @Gyro.canceled += instance.OnGyro;
+            @Accel.started += instance.OnAccel;
+            @Accel.performed += instance.OnAccel;
+            @Accel.canceled += instance.OnAccel;
         }
 
         /// <summary>
@@ -543,9 +572,12 @@ public partial class @InputSystem_Actions: IInputActionCollection2, IDisposable
             @PauseGame.started -= instance.OnPauseGame;
             @PauseGame.performed -= instance.OnPauseGame;
             @PauseGame.canceled -= instance.OnPauseGame;
-            @GyroUpTrigger.started -= instance.OnGyroUpTrigger;
-            @GyroUpTrigger.performed -= instance.OnGyroUpTrigger;
-            @GyroUpTrigger.canceled -= instance.OnGyroUpTrigger;
+            @Gyro.started -= instance.OnGyro;
+            @Gyro.performed -= instance.OnGyro;
+            @Gyro.canceled -= instance.OnGyro;
+            @Accel.started -= instance.OnAccel;
+            @Accel.performed -= instance.OnAccel;
+            @Accel.canceled -= instance.OnAccel;
         }
 
         /// <summary>
@@ -701,11 +733,18 @@ public partial class @InputSystem_Actions: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnPauseGame(InputAction.CallbackContext context);
         /// <summary>
-        /// Method invoked when associated input action "GyroUpTrigger" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// Method invoked when associated input action "Gyro" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
         /// </summary>
         /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
-        void OnGyroUpTrigger(InputAction.CallbackContext context);
+        void OnGyro(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "Accel" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnAccel(InputAction.CallbackContext context);
     }
 }

@@ -70,9 +70,18 @@
                     "initialStateCheck": false
                 },
                 {
-                    "name": "GyroUpTrigger",
+                    "name": "Gyro",
                     "type": "Value",
                     "id": "f1399881-3ebd-406d-8c0a-940a29e20324",
+                    "expectedControlType": "Vector3",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": true
+                },
+                {
+                    "name": "Accel",
+                    "type": "Value",
+                    "id": "5324ac90-b17b-4828-9067-5784d4275091",
                     "expectedControlType": "Vector3",
                     "processors": "",
                     "interactions": "",
@@ -160,11 +169,22 @@
                 {
                     "name": "",
                     "id": "1a85e366-f297-4ca1-917a-52bcec2cd38f",
-                    "path": "",
+                    "path": "GamePadHID/gyro",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
-                    "action": "GyroUpTrigger",
+                    "action": "Gyro",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "c535dc71-62c6-4c5d-985e-05699ea2335d",
+                    "path": "GamePadHID/accel",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Accel",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

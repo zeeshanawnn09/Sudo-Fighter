@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
 
 [RequireComponent(typeof(Animator))]
 [RequireComponent(typeof(CharacterController))]
@@ -11,11 +12,26 @@ using UnityEngine.InputSystem;
 public class FightingController : MonoBehaviour
 {
     [Header("Movement Settings")]
-    [Tooltip("Movement speed in units/sec")]
     public float PlayerSpeed = 1.0f;
-
-    [Tooltip("Rotation smoothing factor (higher = snappier). Uses Slerp with Time.deltaTime.")]
     public float PlayerRotation = 10.0f;
+
+    [Header("Sensor mapping")]
+    public float accelSensitivity = 1.5f;
+    public float gyroSensitivity = 60f;
+    public float smoothing = 5f;
+    public float deadzone = 0.02f;
+
+    [Header("Input Actions (optional)")]
+    public InputActionReference accelAction;
+    public InputActionReference gyroAction;
+    Vector3 smoothedAccel = Vector3.zero;
+    Vector3 smoothedGyro = Vector3.zero;
+    float gyroPitch = 0f;
+
+    [Header("Gyro Tilt Settings")]
+    public float gyroTiltMoveSpeed = 2.0f;
+    public float gyroTiltThreshold = 5f;
+    public float gyroTiltClamp = 60f;
 
     private Animator animator;
     private CharacterController characterController;
@@ -25,10 +41,7 @@ public class FightingController : MonoBehaviour
     public float dodgeDist = 5f;
     public float AttackRadius = 2.2f;
     public int hitDamage = 5;
-
-    [Tooltip("Animation state names used for attacks (index matched to attack number)")]
     public string[] FightAnimations = { "Attack1Animation", "Attack2Animation", "Attack3Animation", "Attack4Animation" };
-
     public Transform[] Opponents;
     private float TimeOfLastAttack;
 
@@ -38,37 +51,26 @@ public class FightingController : MonoBehaviour
     public HealthBarBehavior healthBarBehavior;
 
     [Header("Sounds & Effects Settings")]
-    // Particle systems attached to the player that are played for each attack
     public ParticleSystem HitEffect1;
     public ParticleSystem HitEffect2;
     public ParticleSystem HitEffect3;
     public ParticleSystem HitEffect4;
 
-    [Header("Input (new Input System)")]
-    [Tooltip("Input Action (Vector2) used for player movement. If not assigned, legacy Input axes 'Horizontal'/'Vertical' will be used.")]
+    [Header("Input System Settings")]
     public InputActionReference moveAction;
-
-    [Tooltip("Assign InputActions from your Input Actions asset. Each attack can be bound to a button.")]
     public InputActionReference attack1Action;
     public InputActionReference attack2Action;
     public InputActionReference attack3Action;
     public InputActionReference attack4Action;
-
-    [Tooltip("Dodge action (button)")]
     public InputActionReference dodgeAction;
 
-    [Header("ScriptableObject Data (optional)")]
+    [Header("ScriptableObject Data")]
     public SoundEffectsData soundEffectsData;
 
     [Header("Controller Feedback")]
-    [Tooltip("Low frequency motor intensity (0-1) when hit")]
     public float hitVibrationLow = 0.5f;
-    [Tooltip("High frequency motor intensity (0-1) when hit")]
     public float hitVibrationHigh = 0.5f;
-    [Tooltip("Duration of vibration in seconds")]
     public float hitVibrationDuration = 0.3f;
-
-    // --- Unity lifecycle -------------------------------------------------
 
     private void Awake()
     {
@@ -77,33 +79,31 @@ public class FightingController : MonoBehaviour
             healthBarBehavior.OnStartHealth(currHP);
 
         animator = GetComponent<Animator>();
+        if (animator != null) animator.applyRootMotion = false;
         characterController = GetComponent<CharacterController>();
-        // Set DualSense lightbar (or compatible controller light) to green on game start (best-effort)
+
+        // Set DualSense lightbar color to green on game start
         TrySetControllerLightColor(Color.green);
     }
 
     private void OnEnable()
     {
-        // Subscribe to attack/dodge actions (if assigned)
+        // Link input actions to callbacks
         if (attack1Action?.action != null) attack1Action.action.performed += OnAttack1Performed;
         if (attack2Action?.action != null) attack2Action.action.performed += OnAttack2Performed;
         if (attack3Action?.action != null) attack3Action.action.performed += OnAttack3Performed;
         if (attack4Action?.action != null) attack4Action.action.performed += OnAttack4Performed;
         if (dodgeAction?.action != null) dodgeAction.action.performed += OnDodgePerformed;
-
-        // Ensure the move action is enabled so ReadValue works
         if (moveAction?.action != null && !moveAction.action.enabled) moveAction.action.Enable();
     }
 
     private void OnDisable()
     {
-        // Unsubscribe
         if (attack1Action?.action != null) attack1Action.action.performed -= OnAttack1Performed;
         if (attack2Action?.action != null) attack2Action.action.performed -= OnAttack2Performed;
         if (attack3Action?.action != null) attack3Action.action.performed -= OnAttack3Performed;
         if (attack4Action?.action != null) attack4Action.action.performed -= OnAttack4Performed;
         if (dodgeAction?.action != null) dodgeAction.action.performed -= OnDodgePerformed;
-
         if (moveAction?.action != null && moveAction.action.enabled) moveAction.action.Disable();
     }
 
@@ -114,11 +114,10 @@ public class FightingController : MonoBehaviour
         AttackAnims();
     }
 
-    // --- Movement & actions ---------------------------------------------
 
-     void PlayerMovement()
+    void PlayerMovement()
     {
-        // Read movement from the new Input System if assigned, otherwise fall back to the old Input
+        // Read movement from the new Input System
         Vector2 move = Vector2.zero;
         if (moveAction != null && moveAction.action != null)
         {
@@ -145,13 +144,143 @@ public class FightingController : MonoBehaviour
         }
 
         characterController.Move(Movement * PlayerSpeed * Time.deltaTime);
+        GyroscopeBehavior();
 
     }
+    
+    void GyroscopeBehavior()
+    {
+        Vector3 rawAccel = Vector3.zero;
+        Vector3 rawGyro = Vector3.zero;
 
+        // Use InputActionReferences if assigned in inspector
+        if (accelAction != null && accelAction.action != null && accelAction.action.enabled)
+        {
+            rawAccel = accelAction.action.ReadValue<Vector3>();
+        }
+
+        if (gyroAction != null && gyroAction.action != null && gyroAction.action.enabled)
+        {
+            rawGyro = gyroAction.action.ReadValue<Vector3>();
+        }
+
+        // Othwerwise, try reading from device controls directly
+        if (rawAccel == Vector3.zero || rawGyro == Vector3.zero)
+        {
+            var device = FindDualSenseOrGamepad();
+
+            if (device != null)
+            {
+                foreach (var control in device.allControls)
+                {
+                    var n = (control.name ?? string.Empty).ToLower();
+
+                    if (rawAccel == Vector3.zero && (n.Contains("accel") || n.Contains("acceler") || n.Contains("acceleration")))
+                    {
+                        if (control is Vector3Control v3)
+                            rawAccel = v3.ReadValue();
+                    }
+
+                    if (rawGyro == Vector3.zero && (n.Contains("gyro") || n.Contains("gyroscope") || n.Contains("rotation") || n.Contains("angular")))
+                    {
+                        if (control is Vector3Control v3)
+                            rawGyro = v3.ReadValue();
+                    }
+                }
+            }
+        }
+        if (rawAccel == Vector3.zero)
+        {
+            var acc = InputSystem.GetDevice<UnityEngine.InputSystem.Accelerometer>();
+            if (acc != null)
+            {
+                if (acc.TryGetChildControl<Vector3Control>("acceleration") is Vector3Control v)
+                    rawAccel = v.ReadValue();
+            }
+        }
+
+        if (rawGyro == Vector3.zero)
+        {
+            var gyr = InputSystem.GetDevice<UnityEngine.InputSystem.Gyroscope>();
+            if (gyr != null)
+            {
+                if (gyr.TryGetChildControl<Vector3Control>("angularVelocity") is Vector3Control v)
+                    rawGyro = v.ReadValue();
+            }
+        }
+
+        //Apply a simple exponential smoothing
+        float lerpT = 1 - Mathf.Exp(-smoothing * Time.deltaTime);
+        smoothedAccel = Vector3.Lerp(smoothedAccel, rawAccel, lerpT);
+        smoothedGyro = Vector3.Lerp(smoothedGyro, rawGyro, lerpT);
+
+        //Deadzone to avoid tiny drift
+        if (smoothedAccel.magnitude < deadzone) smoothedAccel = Vector3.zero;
+        if (smoothedGyro.magnitude < deadzone) smoothedGyro = Vector3.zero;
+
+        //Move based on sensors
+        Vector3 accelMove = new Vector3(smoothedAccel.x, 0f, smoothedAccel.y) * accelSensitivity;
+        transform.Translate(accelMove * Time.deltaTime, Space.World);
+
+        Vector3 rot = smoothedGyro * gyroSensitivity;
+        gyroPitch += smoothedGyro.x * gyroSensitivity * Time.deltaTime;
+        gyroPitch = Mathf.Clamp(gyroPitch, -gyroTiltClamp, gyroTiltClamp);
+
+        //If controller is tilted intentionally (beyond threshold) we want tilt to move the player
+        if (Mathf.Abs(gyroPitch) < gyroTiltThreshold)
+        {
+            transform.Rotate(rot * Time.deltaTime, Space.Self);
+        }
+
+        //If tilt exceeds threshold, convert tilt to movement (down -> forward, up -> up)
+        if (Mathf.Abs(gyroPitch) >= gyroTiltThreshold)
+        {
+            float norm = Mathf.Clamp(gyroPitch / gyroTiltClamp, -1f, 1f);
+
+            if (norm > 0f)
+            {
+                //Tilting down -> move ahead
+                Vector3 forwardMove = transform.forward * (norm * gyroTiltMoveSpeed) * Time.deltaTime;
+                //Use CharacterController for movement so collisions are respected
+                if (characterController != null)
+                    characterController.Move(forwardMove);
+                else
+                    transform.Translate(forwardMove, Space.World);
+                animator.SetBool("Walking", true);
+            }
+            else if (norm < 0f)
+            {
+                //Tilting up -> move up
+                Vector3 upMove = Vector3.up * (-norm * gyroTiltMoveSpeed) * Time.deltaTime;
+                if (characterController != null)
+                    characterController.Move(upMove);
+                else
+                    transform.Translate(upMove, Space.World);
+            }
+        }
+    }
+
+    //Try to find a DualSense (PS5) device. Fall back to any connected Gamepad.
+    InputDevice FindDualSenseOrGamepad()
+    {
+        foreach (var d in InputSystem.devices)
+        {
+            var prod = (d.description.product ?? string.Empty).ToLower();
+            var name = (d.name ?? string.Empty).ToLower();
+
+            if (prod.Contains("dualsense") || name.Contains("dualsense") || prod.Contains("HID") && prod.Contains("sense"))
+                return d;
+
+            if (prod.Contains("playstation") || prod.Contains("sony") || name.Contains("playstation") || name.Contains("sony"))
+                return d;
+        }
+
+        return Gamepad.current;
+    }
 
     private void FrwdDodgeBehavior()
-    {
-        // Legacy fallback (keyboard) for dodge
+    {   
+        //Legacy fallback (keyboard) for dodge
         if (Input.GetKeyDown(KeyCode.G))
         {
             animator.Play("DodgeFrontAnimation");
@@ -162,14 +291,13 @@ public class FightingController : MonoBehaviour
 
     private void AttackAnims()
     {
-        // Legacy fallback (keyboard) for attacks
+        //Legacy fallback (keyboard) for attacks
         if (Input.GetKeyDown(KeyCode.Alpha1)) FightBehavior(0);
         else if (Input.GetKeyDown(KeyCode.Alpha2)) FightBehavior(1);
         else if (Input.GetKeyDown(KeyCode.Alpha3)) FightBehavior(2);
         else if (Input.GetKeyDown(KeyCode.Alpha4)) FightBehavior(3);
     }
 
-    // --- Combat ---------------------------------------------------------
 
     private void FightBehavior(int attackIndex)
     {
@@ -203,12 +331,12 @@ public class FightingController : MonoBehaviour
 
     public IEnumerator OnHitAnim(int hit)
     {
-        // Start short vibration to signal hit
+        //Start short vibration to signal hit
         SetControllerVibration(hitVibrationLow, hitVibrationHigh);
 
         yield return new WaitForSeconds(hitVibrationDuration);
 
-        // Play random hit sound from assigned SoundEffectsData (if provided)
+        //Play random hit sound from assigned Sound Effects
         if (soundEffectsData?.hitSounds != null && soundEffectsData.hitSounds.Length > 0)
         {
             var clips = soundEffectsData.hitSounds;
@@ -219,7 +347,7 @@ public class FightingController : MonoBehaviour
         currHP -= hit;
         if (healthBarBehavior != null) healthBarBehavior.SetHealth(currHP);
 
-        // Update lightbar color based on health threshold
+        //Update lightbar color based on health
         if (currHP <= 40)
         {
             TrySetControllerLightColor(Color.red);
@@ -229,20 +357,16 @@ public class FightingController : MonoBehaviour
 
         animator.Play("HitDamageAnimation");
 
-        // Stop vibration after processing hit
+        //Stop vibration after processing hit
         StopControllerVibration();
     }
 
     private void PlayerDeathBehavior() => Debug.Log("Player Died!!!");
 
-    // --- Attack effects (particle systems) -----------------------------
-
     public void AttackEffect1() { if (HitEffect1 != null) HitEffect1.Play(); }
     public void AttackEffect2() { if (HitEffect2 != null) HitEffect2.Play(); }
     public void AttackEffect3() { if (HitEffect3 != null) HitEffect3.Play(); }
     public void AttackEffect4() { if (HitEffect4 != null) HitEffect4.Play(); }
-
-    // --- Input callbacks ------------------------------------------------
 
     private void OnAttack1Performed(InputAction.CallbackContext ctx) => FightBehavior(0);
     private void OnAttack2Performed(InputAction.CallbackContext ctx) => FightBehavior(1);
@@ -261,8 +385,6 @@ public class FightingController : MonoBehaviour
         // Ensure vibration is stopped when object is destroyed
         StopControllerVibration();
     }
-
-    // --- Controller feedback helpers ----------------------------------
 
     private void SetControllerVibration(float low, float high)
     {
@@ -289,34 +411,17 @@ public class FightingController : MonoBehaviour
         catch (Exception) { }
     }
 
-    // --- Public wrappers for inspector / voice callables -----------------
-    // These helpers let other components (or UnityEvents) trigger attacks
-    // or animations without needing access to private members.
-
-    /// <summary>
-    /// Perform attack by index (1-based intuitive in inspector, but zero-based internally).
-    /// Use from inspector/UnityEvent or voice listener. Pass 0 for first attack.
-    /// </summary>
     public void PerformAttackByIndex(int index)
     {
-        // keep same semantics as internal FightBehavior
         FightBehavior(index);
     }
 
-    /// <summary>
-    /// Play an animation state directly on the Animator.
-    /// Useful when wiring an animation name from the inspector or a voice mapping.
-    /// </summary>
     public void PlayAnimationByName(string animationName)
     {
         if (animator == null) animator = GetComponent<Animator>();
         if (!string.IsNullOrEmpty(animationName)) animator.Play(animationName);
     }
 
-    /// <summary>
-    /// Trigger one of the configured attack particle effects (1-4).
-    /// Index is 1-based for clarity in inspector.
-    /// </summary>
     public void TriggerAttackEffect(int effectIndex)
     {
         switch (effectIndex)
@@ -329,10 +434,6 @@ public class FightingController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Try to set the controller light color (DualSense/DualShock/etc.) using reflection.
-    /// This method attempts to find a light-setting method on the device and invoke it safely.
-    /// </summary>
     private void TrySetControllerLightColor(Color color)
     {
         try
