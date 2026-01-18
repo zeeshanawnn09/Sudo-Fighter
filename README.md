@@ -1,6 +1,10 @@
 # 🥊 Sudo Fighter  
 *A Unity-based 3D fighting game with adaptive AI*
 
+<p align="center">
+  <img src="Black and Yellow Gradient Modern Game Presentation.png" width="900">
+</p>
+
 ---
 
 ## 🎮 Game Overview
