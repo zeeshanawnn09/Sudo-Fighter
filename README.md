@@ -103,3 +103,8 @@ Sudo Fighter explores themes of:
 - **Growth**
 
 The game challenges players to evolve their playstyle in response to an AI that continuously learns. Success depends on flexibility, unpredictability, and strategic thinking rather than button-mashing.
+
+---
+
+🎥 Gameplay Video: [https://youtu.be/oTqGt5oOQ2Y](https://youtu.be/oTqGt5oOQ2Y)
+
